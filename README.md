@@ -26,7 +26,7 @@ $ revshell
 $ mkdir /var/www/html/bd7751b6ec39
 $ echo -n "example.com:443" > /var/www/html/bd7751b6ec39/endpoint
 $ cp ca/keys/ca.crt /var/www/html/bd7751b6ec39/ca
-$ cat ca/keys/example.com.crt ca/keys/example.com.key > /var/www/html/bd7751b6ec39/cert
+$ cat ca/keys/client.crt ca/keys/client.key > /var/www/html/bd7751b6ec39/cert
 ```
 
 ### Server
